@@ -3,7 +3,9 @@ import User from '../models/User.js';
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
+    const uri = process.env.MONGO_URI;
+    console.log(`Connecting to MongoDB. URI starts with: "${uri ? uri.substring(0, 20) : 'undefined'}"`);
+    const conn = await mongoose.connect(uri);
     console.log(`MongoDB Connected: ${conn.connection.host}`);
 
     // Seed default admin if none exists
