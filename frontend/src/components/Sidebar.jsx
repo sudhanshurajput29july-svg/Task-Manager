@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FiLayout, FiCheckSquare, FiLogOut, FiX } from 'react-icons/fi';
+import { FiLayout, FiCheckSquare, FiLogOut, FiX, FiUsers } from 'react-icons/fi';
 import AuthContext from '../context/AuthContext';
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
@@ -10,6 +10,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { name: 'Dashboard', path: '/dashboard', icon: FiLayout },
     { name: 'Tasks', path: '/tasks', icon: FiCheckSquare },
   ];
+
+  if (user?.role === 'admin') {
+    navItems.push({ name: 'Employees', path: '/employees', icon: FiUsers });
+  }
 
   const activeLink = 'flex items-center px-4 py-3 text-sm font-medium rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 transition-all duration-200 shadow-sm';
   const normalLink = 'flex items-center px-4 py-3 text-sm font-medium rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-100 transition-all duration-200';
@@ -60,6 +64,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               <p className="text-xs truncate text-slate-500 dark:text-slate-400">
                 {user?.email}
               </p>
+              <span className={`inline-flex items-center rounded-full mt-1.5 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
+                user?.role === 'admin'
+                  ? 'bg-purple-100 text-purple-705 dark:bg-purple-950/40 dark:text-purple-300'
+                  : 'bg-indigo-100 text-indigo-705 dark:bg-indigo-950/40 dark:text-indigo-300'
+              }`}>
+                {user?.role || 'employee'}
+              </span>
             </div>
           </div>
         </div>

@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { FiList, FiCheckCircle, FiClock, FiPlus, FiArrowRight } from 'react-icons/fi';
 import api from '../services/api';
+import AuthContext from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 import TaskCard from '../components/TaskCard';
 import TaskModal from '../components/TaskModal';
+import TaskRemarkModal from '../components/TaskRemarkModal';
 import Spinner from '../components/Spinner';
 
 const Dashboard = () => {
@@ -14,7 +16,12 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRemarkModalOpen, setIsRemarkModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [taskToComplete, setTaskToComplete] = useState(null);
+
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
 
   // Fetch Tasks
   const fetchTasks = async () => {
@@ -37,6 +44,7 @@ const Dashboard = () => {
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === 'Completed').length;
   const pendingTasks = tasks.filter((t) => t.status === 'Pending').length;
+  const inProgressTasks = tasks.filter((t) => t.status === 'In Progress').length;
   
   // Recent 3 tasks (tasks are sorted by createdAt descending from backend)
   const recentTasks = tasks.slice(0, 3);
@@ -44,12 +52,20 @@ const Dashboard = () => {
   // Task operation: Toggle Status
   const handleToggleStatus = async (task) => {
     const newStatus = task.status === 'Completed' ? 'Pending' : 'Completed';
+    
+    // Employees need to write a remark when completing
+    if (newStatus === 'Completed' && !isAdmin) {
+      setTaskToComplete(task);
+      setIsRemarkModalOpen(true);
+      return;
+    }
+
     try {
       const response = await api.patch(`/tasks/${task._id}/status`, {
         status: newStatus,
+        remark: newStatus === 'Pending' ? '' : task.remark, // clear remark if reverting to pending
       });
       
-      // Update state local list
       setTasks((prevTasks) =>
         prevTasks.map((t) => (t._id === task._id ? response.data : t))
       );
@@ -57,6 +73,26 @@ const Dashboard = () => {
     } catch (error) {
       console.error(error);
       toast.error('Failed to update task status');
+    }
+  };
+
+  // Submit Remark for Task Completion
+  const handleRemarkSubmit = async (data) => {
+    try {
+      const response = await api.patch(`/tasks/${taskToComplete._id}/status`, {
+        status: data.status,
+        remark: data.remark,
+      });
+
+      setTasks((prevTasks) =>
+        prevTasks.map((t) => (t._id === taskToComplete._id ? response.data : t))
+      );
+      toast.success('Task marked as completed with remark');
+      setIsRemarkModalOpen(false);
+      setTaskToComplete(null);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to submit remark');
     }
   };
 
@@ -122,15 +158,17 @@ const Dashboard = () => {
             {/* Greeting Header */}
             <div>
               <h2 className="text-2xl font-extrabold text-slate-850 dark:text-slate-100">
-                Workspace Overview
+                {isAdmin ? 'Admin Workspace Overview' : 'Employee Workspace Overview'}
               </h2>
               <p className="text-sm text-slate-450 dark:text-slate-400 mt-1">
-                Here's the summary of your tasks and overall progress.
+                {isAdmin 
+                  ? 'Monitor metrics, assign new tasks, and view completion remarks across all employees.'
+                  : "Track progress and complete your assigned tasks."}
               </p>
             </div>
 
             {/* Metrics cards grid */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-4">
               {/* Total Tasks card */}
               <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800/80 dark:bg-dark-900">
                 <div className="flex items-center justify-between">
@@ -147,7 +185,47 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="mt-4 text-xs font-medium text-slate-400 dark:text-slate-500">
-                  All tasks created in your workspace
+                  {isAdmin ? 'Total tasks assigned in the system' : 'All tasks assigned to you'}
+                </div>
+              </div>
+
+              {/* Pending Tasks card */}
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800/80 dark:bg-dark-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Pending Tasks
+                    </p>
+                    <h3 className="mt-2 text-3xl font-extrabold text-amber-600 dark:text-amber-450">
+                      {pendingTasks}
+                    </h3>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                    <FiClock className="h-6 w-6" />
+                  </div>
+                </div>
+                <div className="mt-4 text-xs font-medium text-slate-400 dark:text-slate-500">
+                  Tasks waiting to be finished
+                </div>
+              </div>
+
+              {/* In Progress Tasks card */}
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800/80 dark:bg-dark-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      In Progress
+                    </p>
+                    <h3 className="mt-2 text-3xl font-extrabold text-blue-600 dark:text-blue-450">
+                      {inProgressTasks}
+                    </h3>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+                    <FiClock className="h-6 w-6" />
+                  </div>
+                </div>
+                <div className="mt-4 text-xs font-medium text-slate-400 dark:text-slate-500">
+                  Tasks currently active
                 </div>
               </div>
 
@@ -172,26 +250,6 @@ const Dashboard = () => {
                     : 'No tasks available'}
                 </div>
               </div>
-
-              {/* Pending Tasks card */}
-              <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800/80 dark:bg-dark-900">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                      Pending Tasks
-                    </p>
-                    <h3 className="mt-2 text-3xl font-extrabold text-amber-600 dark:text-amber-450">
-                      {pendingTasks}
-                    </h3>
-                  </div>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
-                    <FiClock className="h-6 w-6" />
-                  </div>
-                </div>
-                <div className="mt-4 text-xs font-medium text-slate-400 dark:text-slate-500">
-                  Tasks waiting to be finished
-                </div>
-              </div>
             </div>
 
             {/* Quick Actions & Recent Tasks */}
@@ -213,17 +271,19 @@ const Dashboard = () => {
                 {recentTasks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-250 bg-white p-8 text-center dark:border-slate-800 dark:bg-dark-900">
                     <p className="text-sm text-slate-400 dark:text-slate-500">
-                      No tasks found in your workspace.
+                      {isAdmin ? 'No tasks found in the system.' : 'No tasks assigned to you yet.'}
                     </p>
-                    <button
-                      onClick={() => {
-                        setSelectedTask(null);
-                        setIsModalOpen(true);
-                      }}
-                      className="mt-4 inline-flex items-center rounded-xl bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-650 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400"
-                    >
-                      <FiPlus className="mr-1 h-3.5 w-3.5" /> Create Task
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setSelectedTask(null);
+                          setIsModalOpen(true);
+                        }}
+                        className="mt-4 inline-flex items-center rounded-xl bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-650 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400"
+                      >
+                        <FiPlus className="mr-1 h-3.5 w-3.5" /> Assign First Task
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -243,28 +303,32 @@ const Dashboard = () => {
               {/* Action Sidebar Board */}
               <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800/80 dark:bg-dark-900">
                 <h3 className="text-md font-bold text-slate-800 dark:text-slate-100">
-                  Quick Controls
+                  {isAdmin ? 'Quick Controls' : 'Personal Workspace'}
                 </h3>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                  Speed up your workflow using fast action triggers.
+                <p className="text-xs text-slate-450 dark:text-slate-500 mt-1">
+                  {isAdmin 
+                    ? 'Speed up your workflow using fast action triggers.'
+                    : 'Manage and update your daily task completions.'}
                 </p>
 
                 <div className="mt-5 space-y-3">
-                  <button
-                    onClick={() => {
-                      setSelectedTask(null);
-                      setIsModalOpen(true);
-                    }}
-                    className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
-                  >
-                    <FiPlus className="mr-1.5 h-4.5 w-4.5" /> Add New Task
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setSelectedTask(null);
+                        setIsModalOpen(true);
+                      }}
+                      className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                    >
+                      <FiPlus className="mr-1.5 h-4.5 w-4.5" /> Assign New Task
+                    </button>
+                  )}
                   
                   <Link
                     to="/tasks"
-                    className="flex w-full items-center justify-center rounded-xl border border-slate-250 py-3 text-sm font-semibold text-slate-650 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50 transition-all duration-200"
+                    className="flex w-full items-center justify-center rounded-xl border border-slate-250 py-3 text-sm font-semibold text-slate-655 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50 transition-all duration-200"
                   >
-                    Manage Tasks Page
+                    {isAdmin ? 'Manage Tasks Page' : 'View My Tasks'}
                   </Link>
                 </div>
               </div>
@@ -282,6 +346,17 @@ const Dashboard = () => {
         }}
         onSubmit={handleModalSubmit}
         task={selectedTask}
+      />
+
+      {/* Task Remark Modal */}
+      <TaskRemarkModal
+        isOpen={isRemarkModalOpen}
+        onClose={() => {
+          setIsRemarkModalOpen(false);
+          setTaskToComplete(null);
+        }}
+        onSubmit={handleRemarkSubmit}
+        task={taskToComplete}
       />
     </div>
   );

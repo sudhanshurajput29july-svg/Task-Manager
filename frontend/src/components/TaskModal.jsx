@@ -1,21 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { FiX } from 'react-icons/fi';
+import api from '../services/api';
 
 const TaskModal = ({ isOpen, onClose, onSubmit, task = null }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState('Pending');
+  const [assigneeId, setAssigneeId] = useState('');
+  const [priority, setPriority] = useState('Medium');
+  const [dueDate, setDueDate] = useState('');
+  const [employees, setEmployees] = useState([]);
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const response = await api.get('/auth/employees');
+        setEmployees(response.data);
+      } catch (error) {
+        console.error('Failed to retrieve employees list', error);
+      }
+    };
+
+    if (isOpen) {
+      fetchEmployees();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (task) {
       setTitle(task.title || '');
       setDescription(task.description || '');
       setStatus(task.status || 'Pending');
+      setAssigneeId(task.userId?._id || task.userId || '');
+      setPriority(task.priority || 'Medium');
+      setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
     } else {
       setTitle('');
       setDescription('');
       setStatus('Pending');
+      setAssigneeId('');
+      setPriority('Medium');
+      setDueDate('');
     }
     setErrors({});
   }, [task, isOpen]);
@@ -30,6 +56,9 @@ const TaskModal = ({ isOpen, onClose, onSubmit, task = null }) => {
     if (!title.trim()) {
       newErrors.title = 'Title is required';
     }
+    if (!assigneeId) {
+      newErrors.assigneeId = 'Please assign this task to an employee';
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -40,6 +69,9 @@ const TaskModal = ({ isOpen, onClose, onSubmit, task = null }) => {
       title: title.trim(),
       description: description.trim(),
       status,
+      userId: assigneeId,
+      priority,
+      dueDate: dueDate || null,
     });
   };
 
@@ -52,11 +84,11 @@ const TaskModal = ({ isOpen, onClose, onSubmit, task = null }) => {
       ></div>
 
       {/* Modal Content */}
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white p-6 shadow-xl dark:bg-dark-900 border border-slate-150 dark:border-slate-800 transform transition-all animate-fade-in">
+      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white p-6 shadow-xl dark:bg-dark-900 border border-slate-150 dark:border-slate-800 transform transition-all animate-fade-in animate-duration-200">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800/60">
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-            {task ? 'Edit Task' : 'Add New Task'}
+            {task ? 'Edit Task Assignment' : 'Assign New Task'}
           </h2>
           <button
             onClick={onClose}
@@ -66,61 +98,133 @@ const TaskModal = ({ isOpen, onClose, onSubmit, task = null }) => {
           </button>
         </div>
 
-        {/* Form */}
+        {/* Form - Side-by-side 2 column grid to decrease height & increase width */}
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          {/* Title */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Task Title *
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Complete project proposal"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (e.target.value.trim() && errors.title) {
-                  setErrors((prev) => ({ ...prev, title: null }));
-                }
-              }}
-              className={`mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm text-slate-950 placeholder-slate-400 outline-none transition-all duration-200 dark:bg-dark-950 dark:text-slate-100 ${
-                errors.title
-                  ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
-                  : 'border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:focus:border-indigo-450'
-              }`}
-            />
-            {errors.title && (
-              <p className="mt-1 text-xs text-red-500 font-medium">{errors.title}</p>
-            )}
-          </div>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {/* Left Column (Title & Description) */}
+            <div className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Task Title *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Complete project proposal"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (e.target.value.trim() && errors.title) {
+                      setErrors((prev) => ({ ...prev, title: null }));
+                    }
+                  }}
+                  className={`mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm text-slate-955 placeholder-slate-400 outline-none transition-all duration-200 dark:bg-dark-950 dark:text-slate-100 ${
+                    errors.title
+                      ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                      : 'border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:focus:border-indigo-455'
+                  }`}
+                />
+                {errors.title && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{errors.title}</p>
+                )}
+              </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Description
-            </label>
-            <textarea
-              placeholder="Provide a detailed description of the task..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows="4"
-              className="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-950 placeholder-slate-400 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-dark-950 dark:text-slate-100 dark:focus:border-indigo-450"
-            ></textarea>
-          </div>
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Provide a detailed description of the task..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows="4"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-955 placeholder-slate-400 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-dark-950 dark:text-slate-100 dark:focus:border-indigo-455 resize-none h-[116px]"
+                ></textarea>
+              </div>
+            </div>
 
-          {/* Status */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Status
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-950 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-dark-950 dark:text-slate-100 dark:focus:border-indigo-450"
-            >
-              <option value="Pending">Pending</option>
-              <option value="Completed">Completed</option>
-            </select>
+            {/* Right Column (Assignee, Priority/DueDate, Status) */}
+            <div className="space-y-4">
+              {/* Assign Employee */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Assign Employee *
+                </label>
+                <select
+                  value={assigneeId}
+                  onChange={(e) => {
+                    setAssigneeId(e.target.value);
+                    if (e.target.value && errors.assigneeId) {
+                      setErrors((prev) => ({ ...prev, assigneeId: null }));
+                    }
+                  }}
+                  className={`mt-1.5 w-full rounded-xl border bg-white px-4 py-2.5 text-sm text-slate-955 outline-none transition-all duration-200 dark:bg-dark-950 dark:text-slate-100 ${
+                    errors.assigneeId
+                      ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                      : 'border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:focus:border-indigo-455'
+                  }`}
+                >
+                  <option value="">-- Choose Assignee --</option>
+                  {employees.map((emp) => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.name} ({emp.email})
+                    </option>
+                  ))}
+                </select>
+                {errors.assigneeId && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{errors.assigneeId}</p>
+                )}
+              </div>
+
+              {/* Priority & Due Date (Side by side grid) */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Priority */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Priority
+                  </label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-955 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-dark-950 dark:text-slate-100 dark:focus:border-indigo-455"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+
+                {/* Due Date */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-955 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-dark-950 dark:text-slate-100 dark:focus:border-indigo-455"
+                  />
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Status
+                </label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-955 outline-none transition-all duration-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-dark-950 dark:text-slate-100 dark:focus:border-indigo-455"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}

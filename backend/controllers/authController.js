@@ -28,11 +28,12 @@ const registerUser = async (req, res, next) => {
       throw new Error('User already exists');
     }
 
-    // Create user
+    // Create user strictly as employee
     const user = await User.create({
       name,
       email,
       password,
+      role: 'employee',
     });
 
     if (user) {
@@ -40,6 +41,7 @@ const registerUser = async (req, res, next) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
         token: generateToken(user._id),
       });
     } else {
@@ -71,6 +73,7 @@ const loginUser = async (req, res, next) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
         token: generateToken(user._id),
       });
     } else {
@@ -82,4 +85,58 @@ const loginUser = async (req, res, next) => {
   }
 };
 
-export { registerUser, loginUser };
+// @desc    Get all employees
+// @route   GET /api/auth/employees
+// @access  Private (Admin or Authenticated)
+const getEmployees = async (req, res, next) => {
+  try {
+    const employees = await User.find({ role: { $ne: 'admin' } }).select('name email');
+    res.json(employees);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create a new employee (Admin only)
+// @route   POST /api/auth/employees
+// @access  Private (Admin)
+const createEmployee = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      res.status(400);
+      throw new Error('Please fill in all fields');
+    }
+
+    const userExists = await User.findOne({ email });
+
+    if (userExists) {
+      res.status(400);
+      throw new Error('Employee already exists with this email');
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: 'employee',
+    });
+
+    if (user) {
+      res.status(201).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      });
+    } else {
+      res.status(400);
+      throw new Error('Invalid employee data');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { registerUser, loginUser, getEmployees, createEmployee };

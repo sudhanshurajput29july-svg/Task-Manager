@@ -5,10 +5,19 @@ import Task from '../models/Task.js';
 // @access  Private
 const getTasks = async (req, res, next) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, userId } = req.query;
     
-    // Base query: only tasks belonging to the current user
-    const query = { userId: req.user._id };
+    let query = {};
+    
+    // Admin can see all tasks, or filter by a specific employee
+    if (req.user.role === 'admin') {
+      if (userId) {
+        query.userId = userId;
+      }
+    } else {
+      // Employee can only see tasks assigned to them
+      query.userId = req.user._id;
+    }
 
     // Filter by status if not 'All'
     if (status && status !== 'All') {
@@ -20,7 +29,7 @@ const getTasks = async (req, res, next) => {
       query.title = { $regex: search, $options: 'i' };
     }
 
-    const tasks = await Task.find(query).sort({ createdAt: -1 });
+    const tasks = await Task.find(query).populate('userId', 'name email').sort({ createdAt: -1 });
     res.json(tasks);
   } catch (error) {
     next(error);
@@ -56,21 +65,28 @@ const getTaskById = async (req, res, next) => {
 // @access  Private
 const createTask = async (req, res, next) => {
   try {
-    const { title, description, status } = req.body;
+    const { title, description, status, userId, priority, dueDate } = req.body;
 
     if (!title) {
       res.status(400);
       throw new Error('Title is required');
     }
 
+    // Admin can assign to other users (employees), employee defaults to themselves
+    const assignedUser = req.user.role === 'admin' && userId ? userId : req.user._id;
+
     const task = await Task.create({
-      userId: req.user._id,
+      userId: assignedUser,
       title,
       description: description || '',
       status: status || 'Pending',
+      remark: '',
+      priority: priority || 'Medium',
+      dueDate: dueDate || null,
     });
 
-    res.status(201).json(task);
+    const populatedTask = await Task.findById(task._id).populate('userId', 'name email');
+    res.status(201).json(populatedTask);
   } catch (error) {
     next(error);
   }
@@ -81,7 +97,7 @@ const createTask = async (req, res, next) => {
 // @access  Private
 const updateTask = async (req, res, next) => {
   try {
-    const { title, description, status } = req.body;
+    const { title, description, status, remark, userId, priority, dueDate } = req.body;
 
     const task = await Task.findById(req.params.id);
 
@@ -90,18 +106,33 @@ const updateTask = async (req, res, next) => {
       throw new Error('Task not found');
     }
 
-    // Check if task belongs to user
-    if (task.userId.toString() !== req.user._id.toString()) {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = task.userId.toString() === req.user._id.toString();
+
+    if (!isAdmin && !isOwner) {
       res.status(403);
       throw new Error('Not authorized to update this task');
     }
 
-    task.title = title || task.title;
-    task.description = description !== undefined ? description : task.description;
-    task.status = status || task.status;
+    if (isAdmin) {
+      task.title = title || task.title;
+      task.description = description !== undefined ? description : task.description;
+      task.status = status || task.status;
+      task.remark = remark !== undefined ? remark : task.remark;
+      task.priority = priority || task.priority;
+      task.dueDate = dueDate !== undefined ? dueDate : task.dueDate;
+      if (userId) {
+        task.userId = userId;
+      }
+    } else {
+      // Employee can only update status and remark
+      task.status = status || task.status;
+      task.remark = remark !== undefined ? remark : task.remark;
+    }
 
     const updatedTask = await task.save();
-    res.json(updatedTask);
+    const populatedTask = await Task.findById(updatedTask._id).populate('userId', 'name email');
+    res.json(populatedTask);
   } catch (error) {
     next(error);
   }
@@ -119,8 +150,10 @@ const deleteTask = async (req, res, next) => {
       throw new Error('Task not found');
     }
 
-    // Check if task belongs to user
-    if (task.userId.toString() !== req.user._id.toString()) {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = task.userId.toString() === req.user._id.toString();
+
+    if (!isAdmin && !isOwner) {
       res.status(403);
       throw new Error('Not authorized to delete this task');
     }
@@ -137,11 +170,11 @@ const deleteTask = async (req, res, next) => {
 // @access  Private
 const patchTaskStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, remark } = req.body;
 
-    if (!status || !['Completed', 'Pending'].includes(status)) {
+    if (!status || !['Completed', 'Pending', 'In Progress'].includes(status)) {
       res.status(400);
-      throw new Error('Valid status is required (Completed or Pending)');
+      throw new Error('Valid status is required (Completed, Pending, or In Progress)');
     }
 
     const task = await Task.findById(req.params.id);
@@ -151,16 +184,23 @@ const patchTaskStatus = async (req, res, next) => {
       throw new Error('Task not found');
     }
 
-    // Check if task belongs to user
-    if (task.userId.toString() !== req.user._id.toString()) {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = task.userId.toString() === req.user._id.toString();
+
+    if (!isAdmin && !isOwner) {
       res.status(403);
       throw new Error('Not authorized to update this task');
     }
 
     task.status = status;
-    const updatedTask = await task.save();
+    if (remark !== undefined) {
+      task.remark = remark;
+    }
     
-    res.json(updatedTask);
+    const updatedTask = await task.save();
+    const populatedTask = await Task.findById(updatedTask._id).populate('userId', 'name email');
+    
+    res.json(populatedTask);
   } catch (error) {
     next(error);
   }
