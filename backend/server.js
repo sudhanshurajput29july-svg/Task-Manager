@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db.js';
+import User from './models/User.js';
 import authRoutes from './routes/authRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
@@ -10,7 +11,25 @@ import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 dotenv.config();
 
 // Connect to MongoDB
-connectDB();
+await connectDB();
+
+// Seed default admin if none exists
+try {
+  const adminExists = await User.findOne({ role: 'admin' });
+  if (!adminExists) {
+    console.log('Seeding default Admin (Owner) user...');
+    await User.create({
+      name: 'Owner',
+      email: 'admin@taskmanager.com',
+      password: 'adminpassword123',
+      role: 'admin',
+    });
+    console.log('Default Admin (Owner) registered successfully!');
+    console.log('Credentials -> Email: admin@taskmanager.com, Password: adminpassword123');
+  }
+} catch (error) {
+  console.error(`Seeding admin failed: ${error.message}`);
+}
 
 const app = express();
 
