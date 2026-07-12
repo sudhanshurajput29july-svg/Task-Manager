@@ -4,10 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 transition-colors duration-300;
-  }
-  body.dark {
-    @apply bg-dark-950 text-slate-100;
+    @apply bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-dark-950 dark:text-slate-100;
   }
 }
 
@@ -40,4 +37,15 @@
 
 .animate-fade-in {
   animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Dropdown option text color contrast fix for dark mode */
+.dark select, .dark option {
+  background-color: #0b0f19; /* dark-950 background */
+  color: #f1f5f9; /* slate-100 text */
+}
+
+select option {
+  background-color: #ffffff;
+  color: #1e293b;
 }

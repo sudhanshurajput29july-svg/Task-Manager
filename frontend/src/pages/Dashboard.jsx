@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { FiList, FiCheckCircle, FiClock, FiPlus, FiArrowRight } from 'react-icons/fi';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import api from '../services/api';
 import AuthContext from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
@@ -46,7 +47,27 @@ const Dashboard = () => {
   const pendingTasks = tasks.filter((t) => t.status === 'Pending').length;
   const inProgressTasks = tasks.filter((t) => t.status === 'In Progress').length;
   
-  // Recent 3 tasks (tasks are sorted by createdAt descending from backend)
+  // Recharts datasets
+  const statusData = [
+    { name: 'Pending', value: pendingTasks, color: '#f59e0b' },
+    { name: 'In Progress', value: inProgressTasks, color: '#3b82f6' },
+    { name: 'Completed', value: completedTasks, color: '#10b981' },
+  ].filter(item => item.value > 0);
+
+  const prioritiesCount = { Low: 0, Medium: 0, High: 0 };
+  tasks.forEach(t => {
+    if (prioritiesCount[t.priority] !== undefined) {
+      prioritiesCount[t.priority]++;
+    }
+  });
+
+  const priorityData = [
+    { name: 'Low', count: prioritiesCount.Low, fill: '#38bdf8' },
+    { name: 'Medium', count: prioritiesCount.Medium, fill: '#fbbf24' },
+    { name: 'High', count: prioritiesCount.High, fill: '#f87171' },
+  ];
+
+  // Recent 3 tasks
   const recentTasks = tasks.slice(0, 3);
 
   // Task operation: Toggle Status
@@ -140,7 +161,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-dark-955 transition-colors duration-250 lg:pl-64">
+    <div className="min-h-screen bg-slate-50 dark:bg-dark-950 transition-colors duration-250 lg:pl-64">
       {/* Sidebar Layout */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
@@ -165,6 +186,26 @@ const Dashboard = () => {
                   ? 'Monitor metrics, assign new tasks, and view completion remarks across all employees.'
                   : "Track progress and complete your assigned tasks."}
               </p>
+            </div>
+
+            {/* Task Completion Progress Bar */}
+            <div className="rounded-2xl border border-slate-205 bg-white p-5 shadow-sm dark:border-slate-800/85 dark:bg-dark-900">
+              <div className="flex items-center justify-between text-sm font-bold text-slate-700 dark:text-slate-300">
+                <span>Core Task Completion Rate</span>
+                <span>
+                  {totalTasks > 0
+                    ? `${Math.round((completedTasks / totalTasks) * 100)}%`
+                    : '0%'}
+                </span>
+              </div>
+              <div className="mt-2.5 h-3 w-full rounded-full bg-slate-100 dark:bg-dark-950 overflow-hidden shadow-inner border border-slate-200/40 dark:border-slate-800/60">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 transition-all duration-500"
+                  style={{
+                    width: totalTasks > 0 ? `${(completedTasks / totalTasks) * 100}%` : '0%',
+                  }}
+                ></div>
+              </div>
             </div>
 
             {/* Metrics cards grid */}
@@ -251,6 +292,60 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
+
+            {/* Recharts Analytics Section */}
+            {totalTasks > 0 && (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {/* Status distribution PieChart */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800/80 dark:bg-dark-900">
+                  <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-4">
+                    Tasks Status Distribution
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={statusData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {statusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Priority distribution BarChart */}
+                <div className="rounded-2xl border border-slate-205 bg-white p-6 shadow-sm dark:border-slate-800/80 dark:bg-dark-900">
+                  <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-4">
+                    Priority Breakdown
+                  </h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={priorityData} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
+                        <XAxis dataKey="name" tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis allowDecimals={false} tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} />
+                        <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                          {priorityData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Quick Actions & Recent Tasks */}
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">

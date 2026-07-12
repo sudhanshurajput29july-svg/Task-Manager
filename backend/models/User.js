@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema(
       enum: ['employee', 'admin'],
       default: 'employee',
     },
+    avatar: {
+      type: String,
+      default: '',
+    },
   },
   {
     timestamps: true,

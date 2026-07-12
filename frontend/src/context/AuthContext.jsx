@@ -4,18 +4,45 @@ import api from '../services/api';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUserState] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check if user and token are in localStorage on app load
-    const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('token');
-
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
+  const setUser = (userData) => {
+    setUserState(userData);
+    if (userData) {
+      const { avatar, ...safeUserData } = userData;
+      localStorage.setItem('user', JSON.stringify(safeUserData));
+    } else {
+      localStorage.removeItem('user');
     }
-    setLoading(false);
+  };
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const storedUser = localStorage.getItem('user');
+      const storedToken = localStorage.getItem('token');
+
+      if (storedToken) {
+        try {
+          // Fetch up-to-date profile (with large avatar) from backend
+          const response = await api.get('/auth/profile');
+          setUserState(response.data);
+          const { avatar, ...safeUserData } = response.data;
+          localStorage.setItem('user', JSON.stringify(safeUserData));
+        } catch (error) {
+          console.error('Failed to restore session from API:', error);
+          if (storedUser) {
+            setUserState(JSON.parse(storedUser));
+          } else {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
+        }
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   // Login User
@@ -25,7 +52,6 @@ export const AuthProvider = ({ children }) => {
       const { token, ...userData } = response.data;
       
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       
       return { success: true };
@@ -42,7 +68,6 @@ export const AuthProvider = ({ children }) => {
       const { token, ...userData } = response.data;
 
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
 
       return { success: true };
@@ -56,7 +81,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    setUser(null);
+    setUserState(null);
   };
 
   return (

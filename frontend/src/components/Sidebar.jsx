@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FiLayout, FiCheckSquare, FiLogOut, FiX, FiUsers } from 'react-icons/fi';
+import { FiLayout, FiCheckSquare, FiLogOut, FiX, FiUsers, FiCalendar, FiTrello, FiUser } from 'react-icons/fi';
 import AuthContext from '../context/AuthContext';
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
@@ -9,6 +9,9 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: FiLayout },
     { name: 'Tasks', path: '/tasks', icon: FiCheckSquare },
+    { name: 'Kanban Board', path: '/kanban', icon: FiTrello },
+    { name: 'Calendar', path: '/calendar', icon: FiCalendar },
+    { name: 'My Profile', path: '/profile', icon: FiUser },
   ];
 
   if (user?.role === 'admin') {
@@ -54,9 +57,17 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         {/* User profile preview */}
         <div className="px-6 py-6 border-b border-slate-100 dark:border-slate-800/60">
           <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-slate-200 to-indigo-100 text-indigo-700 dark:from-slate-700 dark:to-indigo-950 dark:text-indigo-300 font-semibold shadow-inner">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-            </div>
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt="Profile Avatar"
+                className="h-10 w-10 rounded-full object-cover shadow-inner border border-slate-200 dark:border-slate-700"
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-slate-200 to-indigo-100 text-indigo-700 dark:from-slate-700 dark:to-indigo-950 dark:text-indigo-300 font-semibold shadow-inner">
+                {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+              </div>
+            )}
             <div className="overflow-hidden">
               <p className="text-sm font-semibold truncate text-slate-800 dark:text-slate-200">
                 {user?.name}

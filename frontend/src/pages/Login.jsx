@@ -4,10 +4,12 @@ import toast from 'react-hot-toast';
 import AuthContext from '../context/AuthContext';
 import Spinner from '../components/Spinner';
 import api from '../services/api';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -48,13 +50,20 @@ const Login = () => {
       const { token, ...userData } = response.data;
       
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       
       toast.success('Successfully logged in!');
       navigate('/dashboard');
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed. Please try again.';
+      console.error('Login error:', error);
+      let message = 'Login failed. Please try again.';
+      if (error.response) {
+        message = error.response.data?.message || message;
+      } else if (error.request) {
+        message = 'Cannot connect to backend server. Please verify the backend is running on port 5000.';
+      } else {
+        message = error.message || message;
+      }
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -108,20 +117,29 @@ const Login = () => {
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Password
             </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
-              }}
-              className={`mt-1.5 w-full rounded-2xl border px-4 py-3 text-sm text-slate-950 placeholder-slate-400 outline-none transition-all duration-200 dark:bg-dark-950 dark:text-slate-100 ${
-                errors.password
-                  ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
-                  : 'border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:focus:border-indigo-450'
-              }`}
-            />
+            <div className="relative mt-1.5">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
+                }}
+                className={`w-full rounded-2xl border px-4 py-3 pr-12 text-sm text-slate-950 placeholder-slate-400 outline-none transition-all duration-200 dark:bg-dark-950 dark:text-slate-100 ${
+                  errors.password
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500/20'
+                    : 'border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:focus:border-indigo-455'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-305 transition-colors duration-150"
+              >
+                {showPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+              </button>
+            </div>
             {errors.password && (
               <p className="mt-1 text-xs text-red-500 font-medium">{errors.password}</p>
             )}

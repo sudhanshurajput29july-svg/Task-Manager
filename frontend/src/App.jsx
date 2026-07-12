@@ -8,7 +8,11 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import Employees from './pages/Employees';
+import Calendar from './pages/Calendar';
+import Kanban from './pages/Kanban';
+import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
+
 
 function App() {
   return (
@@ -45,6 +49,31 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/calendar"
+              element={
+                <ProtectedRoute>
+                  <Calendar />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/kanban"
+              element={
+                <ProtectedRoute>
+                  <Kanban />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+
 
             {/* Fallback Catch-all redirection */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

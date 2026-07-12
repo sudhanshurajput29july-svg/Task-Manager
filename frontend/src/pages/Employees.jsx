@@ -63,12 +63,27 @@ const Employees = () => {
     }
   };
 
+  // Change employee role (Admin only)
+  const handleRoleChange = async (id, newRole) => {
+    try {
+      const response = await api.put(`/auth/employees/${id}/role`, { role: newRole });
+      setEmployees((prev) =>
+        prev.map((emp) => (emp._id === id ? { ...emp, role: response.data.role } : emp))
+      );
+      toast.success(`Role updated to ${newRole.toUpperCase()} successfully!`);
+    } catch (error) {
+      console.error(error);
+      const message = error.response?.data?.message || 'Failed to update employee role';
+      toast.error(message);
+    }
+  };
+
   if (user?.role !== 'admin') {
     return null; // Don't flash layout before redirect completes
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-dark-955 transition-colors duration-250 lg:pl-64">
+    <div className="min-h-screen bg-slate-50 dark:bg-dark-950 transition-colors duration-250 lg:pl-64">
       {/* Sidebar Navigation */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
@@ -129,10 +144,18 @@ const Employees = () => {
                   className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md dark:border-slate-800/80 dark:bg-dark-900 animate-fade-in"
                 >
                   <div className="flex items-start space-x-4">
-                    {/* Initial Profile Avatar */}
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-dark-950 dark:to-dark-900 text-indigo-600 dark:text-indigo-400 font-extrabold text-lg shadow-sm">
-                      {emp.name.charAt(0).toUpperCase()}
-                    </div>
+                    {/* Profile Avatar */}
+                    {emp.avatar ? (
+                      <img
+                        src={emp.avatar}
+                        alt={emp.name}
+                        className="h-12 w-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-800 shadow-sm"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-dark-950 dark:to-dark-900 text-indigo-600 dark:text-indigo-400 font-extrabold text-lg shadow-sm">
+                        {emp.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     
                     <div className="overflow-hidden">
                       <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 truncate">
@@ -151,9 +174,17 @@ const Employees = () => {
                       Active
                     </span>
                     
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                      Role: Employee
-                    </span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase">Role:</span>
+                      <select
+                        value={emp.role || 'employee'}
+                        onChange={(e) => handleRoleChange(emp._id, e.target.value)}
+                        className="text-[10px] font-extrabold uppercase tracking-wider border rounded-lg px-2 py-1 outline-none text-slate-700 bg-slate-50 border-slate-200 dark:text-slate-300 dark:bg-dark-950 dark:border-slate-800 transition-all duration-200"
+                      >
+                        <option value="employee">Employee</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               ))}

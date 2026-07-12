@@ -5,7 +5,7 @@ import Task from '../models/Task.js';
 // @access  Private
 const getTasks = async (req, res, next) => {
   try {
-    const { status, search, userId } = req.query;
+    const { status, search, userId, category, sortBy, sortOrder, page, limit } = req.query;
     
     let query = {};
     
@@ -24,13 +24,49 @@ const getTasks = async (req, res, next) => {
       query.status = status;
     }
 
+    // Filter by category if not 'All' and provided
+    if (category && category !== 'All') {
+      query.category = category;
+    }
+
     // Search by title (case-insensitive)
     if (search) {
       query.title = { $regex: search, $options: 'i' };
     }
 
-    const tasks = await Task.find(query).populate('userId', 'name email').sort({ createdAt: -1 });
-    res.json(tasks);
+    // Setup sorting
+    let sort = {};
+    if (sortBy) {
+      sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    } else {
+      sort['createdAt'] = -1;
+    }
+
+    // Pagination check
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+
+    if (pageNum && limitNum) {
+      const skip = (pageNum - 1) * limitNum;
+      const total = await Task.countDocuments(query);
+      const tasks = await Task.find(query)
+        .populate('userId', 'name email avatar')
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum);
+      
+      res.json({
+        tasks,
+        page: pageNum,
+        pages: Math.ceil(total / limitNum),
+        total,
+      });
+    } else {
+      const tasks = await Task.find(query)
+        .populate('userId', 'name email avatar')
+        .sort(sort);
+      res.json(tasks);
+    }
   } catch (error) {
     next(error);
   }
@@ -65,7 +101,7 @@ const getTaskById = async (req, res, next) => {
 // @access  Private
 const createTask = async (req, res, next) => {
   try {
-    const { title, description, status, userId, priority, dueDate } = req.body;
+    const { title, description, status, userId, priority, dueDate, category } = req.body;
 
     if (!title) {
       res.status(400);
@@ -83,9 +119,10 @@ const createTask = async (req, res, next) => {
       remark: '',
       priority: priority || 'Medium',
       dueDate: dueDate || null,
+      category: category || 'Work',
     });
 
-    const populatedTask = await Task.findById(task._id).populate('userId', 'name email');
+    const populatedTask = await Task.findById(task._id).populate('userId', 'name email avatar');
     res.status(201).json(populatedTask);
   } catch (error) {
     next(error);
@@ -97,7 +134,7 @@ const createTask = async (req, res, next) => {
 // @access  Private
 const updateTask = async (req, res, next) => {
   try {
-    const { title, description, status, remark, userId, priority, dueDate } = req.body;
+    const { title, description, status, remark, userId, priority, dueDate, category } = req.body;
 
     const task = await Task.findById(req.params.id);
 
@@ -121,6 +158,7 @@ const updateTask = async (req, res, next) => {
       task.remark = remark !== undefined ? remark : task.remark;
       task.priority = priority || task.priority;
       task.dueDate = dueDate !== undefined ? dueDate : task.dueDate;
+      task.category = category || task.category;
       if (userId) {
         task.userId = userId;
       }
@@ -131,7 +169,7 @@ const updateTask = async (req, res, next) => {
     }
 
     const updatedTask = await task.save();
-    const populatedTask = await Task.findById(updatedTask._id).populate('userId', 'name email');
+    const populatedTask = await Task.findById(updatedTask._id).populate('userId', 'name email avatar');
     res.json(populatedTask);
   } catch (error) {
     next(error);
@@ -198,7 +236,7 @@ const patchTaskStatus = async (req, res, next) => {
     }
     
     const updatedTask = await task.save();
-    const populatedTask = await Task.findById(updatedTask._id).populate('userId', 'name email');
+    const populatedTask = await Task.findById(updatedTask._id).populate('userId', 'name email avatar');
     
     res.json(populatedTask);
   } catch (error) {

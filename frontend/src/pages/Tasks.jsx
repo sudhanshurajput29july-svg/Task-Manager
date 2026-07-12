@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import toast from 'react-hot-toast';
-import { FiPlus, FiFilter, FiFolder, FiUser } from 'react-icons/fi';
+import { FiPlus, FiFilter, FiFolder, FiUser, FiSearch } from 'react-icons/fi';
 import api from '../services/api';
 import AuthContext from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
@@ -22,6 +22,15 @@ const Tasks = () => {
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  // Pagination States
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTasksCount, setTotalTasksCount] = useState(0);
+  const limit = 6;
   
   // User info and roles
   const { user } = useContext(AuthContext);
@@ -30,6 +39,8 @@ const Tasks = () => {
   // Admin specific employee filter states
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('All');
+  const [isEmployeeFilterOpen, setIsEmployeeFilterOpen] = useState(false);
+  const [employeeFilterSearchTerm, setEmployeeFilterSearchTerm] = useState('');
 
   // Fetch employees list if user is Admin
   useEffect(() => {
@@ -53,6 +64,11 @@ const Tasks = () => {
       const params = {
         status: selectedFilter,
         search: searchQuery,
+        category: selectedCategory,
+        sortBy,
+        sortOrder,
+        page,
+        limit,
       };
 
       if (isAdmin && selectedEmployeeId !== 'All') {
@@ -60,7 +76,18 @@ const Tasks = () => {
       }
 
       const response = await api.get('/tasks', { params });
-      setTasks(response.data);
+      
+      // If we got back a paginated object
+      if (response.data && response.data.tasks) {
+        setTasks(response.data.tasks);
+        setTotalPages(response.data.pages || 1);
+        setTotalTasksCount(response.data.total || 0);
+      } else {
+        // Fallback for non-paginated arrays
+        setTasks(response.data || []);
+        setTotalPages(1);
+        setTotalTasksCount(response.data?.length || 0);
+      }
     } catch (error) {
       console.error(error);
       toast.error('Failed to retrieve tasks');
@@ -76,7 +103,12 @@ const Tasks = () => {
     }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery, selectedFilter, selectedEmployeeId]);
+  }, [searchQuery, selectedFilter, selectedEmployeeId, selectedCategory, sortBy, sortOrder, page]);
+
+  // Reset page to 1 when filters or search change
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, selectedFilter, selectedEmployeeId, selectedCategory, sortBy, sortOrder]);
 
   // Toggle Completion Status
   const handleToggleStatus = async (task) => {
@@ -168,8 +200,13 @@ const Tasks = () => {
     }
   };
 
+  const filteredEmployeesForFilter = employees.filter((emp) =>
+    emp.name.toLowerCase().includes(employeeFilterSearchTerm.toLowerCase()) ||
+    emp.email.toLowerCase().includes(employeeFilterSearchTerm.toLowerCase())
+  );
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-dark-955 transition-colors duration-250 lg:pl-64">
+    <div className="min-h-screen bg-slate-50 dark:bg-dark-950 transition-colors duration-250 lg:pl-64">
       {/* Navigation Sidebar */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
@@ -229,24 +266,211 @@ const Tasks = () => {
               ))}
             </div>
 
-            {/* Admin Employee Filter Dropdown */}
-            {isAdmin && (
+            {/* Controls panel: Sort + Employee selection */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Sorting options */}
               <div className="flex items-center space-x-2">
-                <FiUser className="text-slate-450 dark:text-slate-500 h-4 w-4" />
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">Sort By:</span>
                 <select
-                  value={selectedEmployeeId}
-                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                  value={`${sortBy}-${sortOrder}`}
+                  onChange={(e) => {
+                    const [field, order] = e.target.value.split('-');
+                    setSortBy(field);
+                    setSortOrder(order);
+                  }}
                   className="rounded-xl border border-slate-250 bg-white px-3 py-1.5 text-sm font-medium text-slate-750 outline-none focus:border-indigo-500 dark:border-slate-800 dark:bg-dark-900 dark:text-slate-200"
                 >
-                  <option value="All">All Employees</option>
-                  {employees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.name}
-                    </option>
-                  ))}
+                  <option value="createdAt-desc">Newest First</option>
+                  <option value="createdAt-asc">Oldest First</option>
+                  <option value="dueDate-asc">Due Date (Soonest)</option>
+                  <option value="dueDate-desc">Due Date (Latest)</option>
+                  <option value="title-asc">Title (A-Z)</option>
                 </select>
               </div>
-            )}
+
+              {/* Admin Employee Filter Dropdown */}
+              {isAdmin && (
+                <div className="relative flex items-center space-x-2">
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">Assignee:</span>
+                  
+                  {/* Dropdown Trigger Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsEmployeeFilterOpen(!isEmployeeFilterOpen)}
+                    className="flex items-center space-x-2 rounded-xl border border-slate-250 bg-white px-3 py-1.5 text-sm font-medium text-slate-750 outline-none hover:border-indigo-500 dark:border-slate-800 dark:bg-dark-900 dark:text-slate-200 transition-all duration-150"
+                  >
+                    {selectedEmployeeId !== 'All' ? (
+                      (() => {
+                        const selectedEmp = employees.find(emp => emp._id === selectedEmployeeId);
+                        if (selectedEmp) {
+                          return (
+                            <div className="flex items-center space-x-1.5">
+                              {selectedEmp.avatar ? (
+                                <img
+                                  src={selectedEmp.avatar}
+                                  alt={selectedEmp.name}
+                                  className="h-4.5 w-4.5 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-[8px] font-bold text-white uppercase">
+                                  {selectedEmp.name.charAt(0)}
+                                </div>
+                              )}
+                              <span className="font-semibold">{selectedEmp.name}</span>
+                            </div>
+                          );
+                        }
+                        return <span>All Employees</span>;
+                      })()
+                    ) : (
+                      <span>All Employees</span>
+                    )}
+                    
+                    <svg
+                      className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${
+                        isEmployeeFilterOpen ? 'rotate-180' : ''
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isEmployeeFilterOpen && (
+                    <>
+                      {/* Backdrop */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setIsEmployeeFilterOpen(false)}
+                      ></div>
+                      
+                      <div className="absolute right-0 top-full z-50 mt-1.5 w-60 max-h-72 overflow-y-auto rounded-2xl border border-slate-150 bg-white p-2 shadow-2xl dark:border-slate-800 dark:bg-dark-900 scrollbar-thin animate-fade-in">
+                        {/* Search Input */}
+                        <div className="relative mb-2 px-1">
+                          <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                            <FiSearch className="h-3.5 w-3.5" />
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="Search employee..."
+                            value={employeeFilterSearchTerm}
+                            onChange={(e) => setEmployeeFilterSearchTerm(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs outline-none focus:border-indigo-500 focus:bg-white dark:border-slate-800 dark:bg-dark-955 dark:text-slate-100"
+                          />
+                        </div>
+
+                        {/* Options */}
+                        <div className="space-y-1">
+                          {/* "All Employees" option */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedEmployeeId('All');
+                              setIsEmployeeFilterOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-850 ${
+                              selectedEmployeeId === 'All' ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : ''
+                            }`}
+                          >
+                            <span className={`font-semibold text-slate-850 dark:text-slate-200 ${
+                              selectedEmployeeId === 'All' ? 'text-indigo-650 dark:text-indigo-400 font-bold' : ''
+                            }`}>
+                              All Employees
+                            </span>
+                            {selectedEmployeeId === 'All' && (
+                              <svg
+                                className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+
+                          {/* Individual Employee options */}
+                          {filteredEmployeesForFilter.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-xs text-slate-405 dark:text-slate-500">
+                              No employees found
+                            </div>
+                          ) : (
+                            filteredEmployeesForFilter.map((emp) => {
+                              const isSelected = emp._id === selectedEmployeeId;
+                              return (
+                                <button
+                                  key={emp._id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedEmployeeId(emp._id);
+                                    setIsEmployeeFilterOpen(false);
+                                  }}
+                                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-850 ${
+                                    isSelected ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center space-x-2.5">
+                                    {emp.avatar ? (
+                                      <img
+                                        src={emp.avatar}
+                                        alt={emp.name}
+                                        className="h-7 w-7 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-[10px] font-bold text-white uppercase">
+                                        {emp.name.charAt(0)}
+                                      </div>
+                                    )}
+                                    <div className="overflow-hidden">
+                                      <p className={`font-semibold text-slate-800 dark:text-slate-100 truncate ${
+                                        isSelected ? 'text-indigo-650 dark:text-indigo-400 font-bold' : ''
+                                      }`}>
+                                        {emp.name}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <svg
+                                      className="h-4.5 w-4.5 text-indigo-600 dark:text-indigo-400"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Category Filter Pills Row */}
+          <div className="flex flex-wrap gap-2 py-1 border-b border-slate-200/50 dark:border-slate-800/50">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 self-center mr-2">Category:</span>
+            {['All', 'Work', 'Personal', 'Shopping', 'Others'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-200 ${
+                  selectedCategory === cat
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 dark:bg-dark-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
 
           {/* Task Grid rendering */}
@@ -319,6 +543,31 @@ const Tasks = () => {
         onSubmit={handleRemarkSubmit}
         task={taskToComplete}
       />
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-205 dark:border-slate-800/80 pt-6 mt-8 max-w-7xl mx-auto">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-250 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-dark-900 dark:text-slate-300 dark:hover:bg-slate-800/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
+          >
+            Previous
+          </button>
+          
+          <span className="text-sm font-bold text-slate-500 dark:text-slate-400">
+            Page {page} of {totalPages} ({totalTasksCount} tasks total)
+          </span>
+
+          <button
+            disabled={page === totalPages}
+            onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-250 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-dark-900 dark:text-slate-300 dark:hover:bg-slate-800/60 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 };
