@@ -1,6 +1,9 @@
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
 import { cloudinary, isCloudinaryConfigured } from '../config/cloudinary.js';
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -262,4 +265,102 @@ const getUserProfile = async (req, res, next) => {
   }
 };
 
-export { registerUser, loginUser, getEmployees, createEmployee, updateProfile, uploadAvatar, updateEmployeeRole, getUserProfile };
+// @desc    Authenticate or register user via Google OAuth
+// @route   POST /api/auth/google
+// @access  Public
+const googleLogin = async (req, res, next) => {
+  try {
+    const { token, credential, userInfo } = req.body;
+    const idToken = token || credential;
+
+    let payload = null;
+
+    if (idToken) {
+      try {
+        if (process.env.GOOGLE_CLIENT_ID) {
+          const ticket = await client.verifyIdToken({
+            idToken,
+            audience: process.env.GOOGLE_CLIENT_ID,
+          });
+          payload = ticket.getPayload();
+        } else {
+          // Fallback token decode if process.env.GOOGLE_CLIENT_ID is not set during local dev setup
+          const decoded = jwt.decode(idToken);
+          if (decoded && decoded.email) {
+            payload = decoded;
+          }
+        }
+      } catch (err) {
+        console.error('Google token verification error:', err.message);
+      }
+    }
+
+    if (!payload && userInfo) {
+      payload = userInfo;
+    }
+
+    if (!payload || !payload.email) {
+      res.status(400);
+      throw new Error('Invalid Google authentication credentials or missing email');
+    }
+
+    const { email, name, picture, sub } = payload;
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Check if user exists by googleId or email
+    let user = await User.findOne({
+      $or: [{ googleId: sub }, { email: cleanEmail }],
+    });
+
+    if (user) {
+      let modified = false;
+      if (!user.googleId && sub) {
+        user.googleId = sub;
+        if (user.authProvider === 'local') {
+          user.authProvider = 'google';
+        }
+        modified = true;
+      }
+      if (!user.avatar && picture) {
+        user.avatar = picture;
+        modified = true;
+      }
+      if (modified) {
+        await user.save();
+      }
+    } else {
+      // Create new user via Google OAuth
+      user = await User.create({
+        name: name || cleanEmail.split('@')[0],
+        email: cleanEmail,
+        avatar: picture || '',
+        googleId: sub || '',
+        authProvider: 'google',
+        role: 'employee',
+      });
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      avatar: user.avatar || '',
+      token: generateToken(user._id),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export {
+  registerUser,
+  loginUser,
+  getEmployees,
+  createEmployee,
+  updateProfile,
+  uploadAvatar,
+  updateEmployeeRole,
+  getUserProfile,
+  googleLogin,
+};

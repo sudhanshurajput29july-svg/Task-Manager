@@ -1,6 +1,16 @@
 import express from 'express';
 import multer from 'multer';
-import { registerUser, loginUser, getEmployees, createEmployee, updateProfile, uploadAvatar, updateEmployeeRole, getUserProfile } from '../controllers/authController.js';
+import {
+  registerUser,
+  loginUser,
+  googleLogin,
+  getEmployees,
+  createEmployee,
+  updateProfile,
+  uploadAvatar,
+  updateEmployeeRole,
+  getUserProfile,
+} from '../controllers/authController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -8,6 +18,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.post('/google', googleLogin);
 
 router.route('/employees')
   .get(protect, getEmployees)

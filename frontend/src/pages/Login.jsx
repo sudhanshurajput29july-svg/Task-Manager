@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import AuthContext from '../context/AuthContext';
 import Spinner from '../components/Spinner';
+import OAuthButtons from '../components/OAuthButtons';
 import api from '../services/api';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 
@@ -154,6 +155,8 @@ const Login = () => {
             {isSubmitting ? <Spinner size="sm" /> : 'Sign In'}
           </button>
         </form>
+
+        <OAuthButtons />
 
         {/* Footer */}
         <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-6">
