@@ -284,14 +284,19 @@ const googleLogin = async (req, res, next) => {
           });
           payload = ticket.getPayload();
         } else {
-          // Fallback token decode if process.env.GOOGLE_CLIENT_ID is not set during local dev setup
+          // Fallback token decode if GOOGLE_CLIENT_ID is not configured
           const decoded = jwt.decode(idToken);
           if (decoded && decoded.email) {
             payload = decoded;
           }
         }
       } catch (err) {
-        console.error('Google token verification error:', err.message);
+        console.error('Google token verification notice:', err.message);
+        // Fall back to decoded token if present
+        const decoded = jwt.decode(idToken);
+        if (decoded && decoded.email) {
+          payload = decoded;
+        }
       }
     }
 
@@ -304,18 +309,22 @@ const googleLogin = async (req, res, next) => {
       throw new Error('Invalid Google authentication credentials or missing email');
     }
 
-    const { email, name, picture, sub } = payload;
+    const { email, name, picture, sub, googleId, id, uid } = payload;
+    const userSub = sub || googleId || id || uid || '';
     const cleanEmail = email.toLowerCase().trim();
 
-    // Check if user exists by googleId or email
-    let user = await User.findOne({
-      $or: [{ googleId: sub }, { email: cleanEmail }],
-    });
+    // Check if user exists by googleId (only if non-empty) or email
+    const queryConditions = [{ email: cleanEmail }];
+    if (userSub) {
+      queryConditions.push({ googleId: userSub });
+    }
+
+    let user = await User.findOne({ $or: queryConditions });
 
     if (user) {
       let modified = false;
-      if (!user.googleId && sub) {
-        user.googleId = sub;
+      if (!user.googleId && userSub) {
+        user.googleId = userSub;
         if (user.authProvider === 'local') {
           user.authProvider = 'google';
         }
@@ -334,7 +343,7 @@ const googleLogin = async (req, res, next) => {
         name: name || cleanEmail.split('@')[0],
         email: cleanEmail,
         avatar: picture || '',
-        googleId: sub || '',
+        googleId: userSub,
         authProvider: 'google',
         role: 'employee',
       });

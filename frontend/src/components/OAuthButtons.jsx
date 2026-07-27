@@ -66,6 +66,9 @@ const OAuthButtons = () => {
   const handleFirebaseGoogleLogin = async () => {
     setIsLoading(true);
     try {
+      if (!auth || !googleProvider) {
+        throw new Error('Firebase Auth is not initialized. Please check VITE_FIREBASE_* in frontend/.env');
+      }
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       const idToken = await user.getIdToken();
@@ -90,14 +93,22 @@ const OAuthButtons = () => {
     const firebaseKey = import.meta.env.VITE_FIREBASE_API_KEY;
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-    // 1. If Firebase API Key is set, use Firebase Auth
-    if (firebaseKey && !firebaseKey.includes('your_') && firebaseKey.length > 10) {
+    const hasValidFirebaseKey = firebaseKey && 
+      !firebaseKey.includes('your_') && 
+      firebaseKey.length > 10;
+
+    const hasValidGoogleId = googleClientId && 
+      !googleClientId.includes('your_google_client_id_here') && 
+      !googleClientId.includes('dummy');
+
+    // 1. If Firebase is configured, use Firebase Auth (primary)
+    if (hasValidFirebaseKey) {
       handleFirebaseGoogleLogin();
       return;
     }
 
-    // 2. If Google Client ID is set, use direct Google OAuth
-    if (googleClientId && !googleClientId.includes('your_google_client_id_here') && !googleClientId.includes('dummy')) {
+    // 2. If Google Client ID is configured, use direct Google OAuth (@react-oauth/google)
+    if (hasValidGoogleId) {
       loginWithGoogle();
       return;
     }
@@ -106,7 +117,7 @@ const OAuthButtons = () => {
     toast((t) => (
       <div className="flex flex-col gap-1.5 text-xs">
         <span className="font-bold text-amber-600 dark:text-amber-400">OAuth Credentials Needed</span>
-        <span>Set <code className="bg-slate-200 dark:bg-dark-800 px-1 rounded">VITE_FIREBASE_API_KEY</code> or <code className="bg-slate-200 dark:bg-dark-800 px-1 rounded">VITE_GOOGLE_CLIENT_ID</code> in <code className="bg-slate-200 dark:bg-dark-800 px-1 rounded">frontend/.env</code>.</span>
+        <span>Set <code className="bg-slate-200 dark:bg-dark-800 px-1 rounded">VITE_FIREBASE_API_KEY</code> in <code className="bg-slate-200 dark:bg-dark-800 px-1 rounded">frontend/.env</code>.</span>
       </div>
     ), { duration: 6000, icon: '🔑' });
   };

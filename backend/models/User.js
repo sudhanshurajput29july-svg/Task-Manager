@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: function () {
-        return !this.googleId;
+        return this.authProvider === 'local' && !this.googleId;
       },
       minlength: [6, 'Password must be at least 6 characters'],
     },
